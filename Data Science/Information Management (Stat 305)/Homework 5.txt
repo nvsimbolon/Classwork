@@ -1,0 +1,135 @@
+-- Question 1
+WITH total_matches AS (select l.name, count(m.match_api_id) AS total_matches
+                        from match as m, league as l
+                        on m.league_id = l.id
+                        group by l.name),
+                        
+     home_wins AS (select l.name, count(m.match_api_id) AS home_wins
+                   from match as m, league as l
+                   on m.league_id = l.id
+                   where m.home_team_goal > m.away_team_goal
+                   group by l.name),
+                   
+     home_win_percentages AS (select t.name, ROUND((CAST(h.home_wins AS FLOAT)/t.total_matches) *100, 2) AS home_win_percentages
+                              from total_matches as t, home_wins as h
+                              on t.name = h.name
+                              order by home_win_percentages)
+                              
+SELECT p.name, t.total_matches, h.home_wins, p.home_win_percentages
+FROM home_win_percentages AS p, total_matches AS t, home_wins AS h
+ON p.name = t.name AND p.name = h.name AND t.name = h.name
+WHERE home_win_percentages == (select MAX(home_win_percentages)
+                               from home_win_percentages);                
+-- Spain LIGA BBVA has the highest home win percentage.
+
+
+-- Question 2
+WITH avg_goals AS (select *, AVG(home_team_goal + away_team_goal) as avg_goals
+                   from match
+                   group by season),
+                   
+     overall_avg AS (select *, AVG(home_team_goal + away_team_goal) as overall_avg_goals
+                     from match),
+                     
+     july_avg_goals AS (select *, AVG(home_team_goal + away_team_goal) as july_avg_goals
+                        from match
+                        where strftime('%m', date) = '07'
+                        group by season),
+                        
+     may_avg_goals AS (select *, AVG(home_team_goal + away_team_goal) as may_avg_goals
+                        from match
+                        where strftime('%m', date) = '05'
+                        group by season)
+                        
+SELECT a.season, a.avg_goals, j.july_avg_goals, m.may_avg_goals, AVG(a.home_team_goal + a.away_team_goal) OVER() AS overall_avg_goals
+FROM avg_goals AS a, july_avg_goals AS j, may_avg_goals AS m
+ON a.season = j.season AND a.season = m.season AND j.season = m.season;
+
+select *
+from countries as c_main
+where surface_area > (select avg(surface_area) 
+                      from countries AS c_sub
+                      where c_main.continent = c_sub.continent);
+-- Question 3a
+CREATE TABLE question3a AS
+SELECT m.date, c.name AS country_name, 
+(select team_long_name from team where team_api_id == m.home_team_api_id) AS home_team_name,
+(select team_long_name from team as l where team_api_id == m.away_team_api_id) AS away_team_name,
+m.home_team_goal, m.away_team_goal
+FROM match as m
+INNER JOIN country as c
+on m.country_id = c.id;
+-- Table is too large to print I think, keeps crashing SQL when I attempt to print it.
+
+
+-- Question 3b
+SELECT *, (home_team_goal + away_team_goal) AS total_goals
+FROM question3a
+WHERE total_goals >= 10
+ORDER BY total_goals DESC;
+
+-- Question 3c
+WITH home_goals AS (SELECT season, home_team_api_id, Sum(home_team_goal) AS season_home_goals
+                    FROM match
+                    GROUP BY home_team_api_id, season),
+    
+    away_goals AS (SELECT season, away_team_api_id, Sum(away_team_goal) AS season_away_goals
+                   FROM match
+                   GROUP BY away_team_api_id, season)
+
+SELECT h.season, team_long_name AS team_name, (season_home_goals + season_away_goals) AS total_goals
+FROM home_goals AS h, away_goals AS a, team AS t
+ON h.season = a.season AND t.team_api_id = h.home_team_api_id AND t.team_api_id = a.away_team_api_id
+WHERE home_team_api_id == away_team_api_id;
+                    
+
+-- Question 4
+CREATE TABLE games (
+	game_id NUM PRIMARY KEY,
+	year NUM VARCHAR(25),
+	host_city TEXT VARCHAR(25),
+         host_country NUM VARCHAR(25)
+);
+
+CREATE TABLE medals (
+	medal_id NUM PRIMARY KEY,
+         game_id NUM,
+	sport TEXT VARCHAR(25),
+         discipline TEXT VARCHAR(25),
+         athlete TEXT VARCHAR(25),
+         country TEXT VARCHAR(3),
+         gender TEXT VARCHAR(25),
+         event TEXT VARCHAR(25),
+         medal TEXT VARCHAR(25)
+);
+
+
+-- Question 5
+WITH usa_gold AS (SELECT *, Sum(CASE WHEN medal == 'Gold' AND country == 'USA' THEN 1
+                  ELSE NULL
+                  END) AS usa_gold
+                  FROM medals
+                  GROUP BY game_id)
+
+SELECT year, host_city, usa_gold, Sum(usa_gold) OVER(ORDER BY year) AS running_usa_gold_total
+FROM games AS g, usa_gold AS u
+USING(game_id)
+GROUP BY year
+ORDER BY usa_gold DESC;
+-- The 1984 Olympic games in LA were the best for the USA in terms of gold medals because we earned 168 gold medals that year.
+
+
+-- Question 6
+WITH gold_medals AS (SELECT *, LAG(country,1) OVER(PARTITION BY sport, discipline, event, gender ORDER BY game_id) as previous_winner
+                     FROM medals
+                     WHERE medal = 'Gold')
+
+SELECT country, Sum(back_to_back) AS back_to_back_championships
+FROM (SELECT *,
+      CASE WHEN previous_winner == country THEN 1
+      ELSE 0 
+      END AS back_to_back
+      FROM gold_medals)
+GROUP BY country
+ORDER BY back_to_back_championships DESC;
+-- The top 3 countries that won back-to-back championships were USA, URS, and GBR, in that order.

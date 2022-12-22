@@ -1,0 +1,103 @@
+-- Question 1a
+WITH offense AS (SELECT m.season, t.team_long_name AS team,
+                    max(a.chanceCreationPassing + a.chanceCreationCrossing + a.chanceCreationShooting) AS "Best Offense",
+                    "Best Offense" AS title
+                 FROM match AS m
+                 INNER JOIN team_attributes AS a USING(date)
+                 INNER JOIN team AS t USING(team_api_id)
+                 GROUP BY season),
+    
+     defence AS (SELECT m.season, t.team_long_name AS team,
+                     max(a.defencePressure + a.defenceAggression + a.defenceTeamWidth) AS "Best Defence",
+                     "Best Defence" AS title
+                 FROM match AS m
+                 INNER JOIN team_attributes AS a USING(date)
+                 INNER JOIN team AS t USING(team_api_id)
+                 GROUP BY season)
+SELECT season, team, title
+FROM offense
+UNION 
+SELECT season, team, title
+FROM defence
+ORDER BY season;
+
+-- Question 1b
+-- There does not appear to be any teams that are both the best
+-- defensive and the best offensive team in the same season, however,
+-- there are repeated teams in the table I created.
+
+
+-- Question 2
+SELECT team, Count(team) AS total_matches
+FROM (SELECT CASE
+             WHEN (home_team_api_id = 9823 AND away_team_api_id = 10189) OR
+                  (home_team_api_id = 10189 AND away_team_api_id = 9823) THEN 'Bayern Munich & Schalke 04'
+            WHEN (home_team_api_id = 9823 OR away_team_api_id = 9823) THEN 'Bayern Munich and Other Teams'
+            WHEN (home_team_api_id = 10189 OR away_team_api_id = 10189) THEN 'Schalke 04 and Other Teams'
+            ELSE 'Other'
+            END AS team
+      FROM match)
+GROUP BY team;
+
+
+-- Question 3a
+SELECT name AS country, sub1.season_2012_2013, sub1.season_2013_2014, sub1.season_2014_2015
+from (select league_id,
+round((cast(Count(CASE WHEN (season = '2012/2013') AND (home_team_goal > away_team_goal) THEN season END) AS float) /count(case when season = '2012/2013'THEN season END) * 100),2) AS season_2012_2013,
+(cast(Count(CASE WHEN (season = '2013/2014') AND (home_team_goal > away_team_goal) THEN season END) AS float) /count(case when season = '2013/2014'THEN season END) * 100) AS season_2013_2014,
+(cast(Count(CASE WHEN (season = '2014/2015') AND (home_team_goal > away_team_goal) THEN season END) AS float) /count(case when season = '2014/2015'THEN season END) * 100) AS season_2014_2015
+from match
+group by league_id) as sub1
+INNER JOIN country
+ON country.id = sub1.league_id;
+
+-- Question 3b
+-- According to my generated table, Spain actually only has the highest home-court advantage for the 2012/2013 season.
+-- For the 2013/2014 and 2014/2015 seasons, other countries have a higher home-court advantage.
+
+
+-- Question 4a
+SELECT team_api_id
+FROM team
+WHERE team_long_name = 'FC Barcelona';
+-- FC Barcelona's team_api_id is 8634.
+
+-- Question 4b
+SELECT t.team_long_name AS opponent, m.season, m.date, 
+CASE WHEN (m.home_team_goal > m.away_team_goal) THEN 'win'
+     WHEN (m.home_team_goal = m.away_team_goal) THEN 'draw'
+     ELSE 'loss'
+     END AS outcome
+FROM match AS m, team AS t
+ON m.away_team_api_id = t.team_api_id
+WHERE m.home_team_api_id = 8634;
+
+-- Question 4c
+WITH a AS (SELECT t.team_long_name AS opponent, m.season, m.date, 
+            CASE WHEN (m.home_team_goal > m.away_team_goal) THEN 'win'
+            WHEN (m.home_team_goal = m.away_team_goal) THEN 'draw'
+            ELSE 'loss'
+            END AS outcome
+            FROM match AS m, team AS t
+            ON m.away_team_api_id = t.team_api_id
+            WHERE m.home_team_api_id = 8634)
+
+select season, outcome, count(outcome) as count
+from a
+group by season, outcome;
+
+-- Because FC Barcelona did not lose a match in the 2009/2010  and the 2012/2013 seasons, there is
+-- no loss count there. The least successful season was 2008/2009 and the most
+-- successful seasons were 2009/2010 and 2012/2013 (the exact same scoring).
+
+-- Question 4d
+select 'Real Madrid CF' as opponent, outcome, count(outcome)
+from (select *,
+case when home_team_goal > away_team_goal THEN 'win'
+     when home_team_goal < away_team_goal THEN 'loss'
+     else 'draw'
+     end as outcome
+from match
+where away_team_api_id = 8633 AND home_team_api_id = 8634)
+group by outcome;
+

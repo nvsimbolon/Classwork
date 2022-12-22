@@ -1,0 +1,109 @@
+-- Question 1
+-- There are 7 tables in this dataset.
+
+
+-- Question 2
+-- a.) I can see only 2 out of the 3 possible relationships in this database: one-to-one and one-to-many
+-- b.) Examples:
+--          - One-to-one: Country and league tables
+--          - One-to-many: Match, country, and league tables
+-- c.) One-to-one:
+--          - Country & league; primary key - "id", foreign_key - "country_id"
+--     One-to-Many:
+--          - Match & country & league; primary key - "id", foreign_keys - "country_id" & "league_id"
+
+
+-- Question 3
+SELECT Count(player_name) AS num_of_players
+FROM player;
+-- There are 11060 players in the database.
+
+SELECT Count(id) AS num_of_teams
+FROM team;
+-- There are 299 teams in the database.
+
+SELECT c.name AS Country, l.name
+FROM country AS c
+INNER JOIN league AS l
+ON c.id = l.country_id;
+-- There are 11 countries in the database.
+
+SELECT DISTINCT(season) AS seasons
+FROM match;
+-- There are 8 seasons in the database.
+
+
+-- Question 4
+SELECT home_team_api_id, COUNT(home_team_api_id) AS home_team_wins, l.name AS league
+FROM match AS m
+INNER JOIN league AS l
+ON m.league_id = l.id
+WHERE m.home_team_goal > m.away_team_goal
+GROUP BY league;
+
+SELECT home_team_api_id, COUNT(home_team_api_id) AS all_games, l.name AS league
+FROM match AS m
+INNER JOIN league AS l
+ON m.league_id = l.id
+GROUP BY league;
+-- In order to calculate the home court advantage, I imported the newly created columns "home_team_wins" and 
+-- "all_games" from sqlite into a Google Sheet. I then divided the number of "home_team_wins" by "all_games"
+-- per league. The Spanish league "Spain LIGA BBVA" has the strongest home court advantage according to my
+-- calculations.
+
+
+-- Question 5a
+SELECT season, AVG(home_team_goal & away_team_goal) AS average_goals, MAX(home_team_goal & away_team_goal) AS max_goals
+FROM match
+GROUP BY season;
+-- It appears as if there has not been a significant change over the seasons. The count of max_goals seems to hover
+-- around 4 and the average_goals seems to hover around 41% - 42%. Overall, the change over the years seems a bit
+-- negligible.
+
+-- Question 5b
+SELECT strftime('%Y %m', date) AS month, AVG(home_team_goal & away_team_goal) AS average_goals
+FROM match
+GROUP BY month;
+-- In respect to a possible weather effect, it appears that over the number of months and years, there is a slight
+-- increase in the average number of goals scored per game (from 0.14 in 07/2008 to 0.516 in 05/2016).
+
+
+-- Question 6a
+CREATE TABLE rating AS
+    SELECT player_api_id, MAX(overall_rating) AS overall_rating, season
+    FROM player_attributes AS p
+    INNER JOIN match AS m
+    ON p.date = m.date
+    GROUP BY season;
+    
+SELECT r.season, player_name
+FROM rating AS r
+INNER JOIN player AS p
+ON r.player_api_id = p.player_api_id;
+-- Yes, Lionel Messi is rated the best for more than one season (6 seasons in a row actually).
+
+-- Question 6b
+CREATE TABLE gk_rating AS
+    SELECT player_api_id, AVG(gk_diving & gk_handling & gk_kicking & gk_positioning & gk_reflexes) AS gk, season
+    FROM player_attributes AS p
+    INNER JOIN match AS m
+    ON p.date = m.date
+    GROUP BY season;
+    
+SELECT g.season, player_name
+FROM gk_rating AS g
+INNER JOIN player AS p
+ON g.player_api_id = p.player_api_id;
+-- Only two goalkeepers appear and Aaron Cresswell appears the most (6 seasons in a row!).
+
+
+-- Question 7
+SELECT (2016 - strftime('%Y', p.birthday)) AS age, AVG(a.overall_rating) AS average_rating, MAX(a.overall_rating) AS max_rating
+FROM player AS p
+INNER JOIN player_attributes AS a
+ON p.player_api_id = a.player_api_id
+GROUP BY age;
+-- Highest Overall Average: 48 (79.5 average rating)
+-- Highest Overall Maximum: 29 (94 max rating)
+
+
